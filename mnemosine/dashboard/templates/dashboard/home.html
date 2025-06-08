@@ -1,0 +1,282 @@
+<!-- dashboard/templates/dashboard/home.html -->
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="container text-center">
+    <h1 class="display-3">Cronômetro de Estudos</h1>
+    <p class="lead">Foque no seu estudo e registre seu progresso!</p>
+    
+    <div class="my-5">
+        <h1 id="timerDisplay" style="font-size: 6rem; font-family: 'Courier New', Courier, monospace;">00:00:00</h1>
+    </div>
+
+    <div>
+        <button id="startButton" class="btn btn-success btn-lg mx-2">Iniciar</button>
+        <button id="stopButton" class="btn btn-danger btn-lg mx-2" disabled>Parar</button>
+        <button id="resetButton" class="btn btn-secondary btn-lg mx-2" disabled>Zerar</button>
+        <button id="manualRegisterBtn" class="btn btn-primary btn-lg mx-2">Registrar Estudo Manualmente</button>
+    </div>
+</div>
+
+<!-- Modal para Salvar Sessão -->
+<div class="modal fade" id="saveSessionModal" tabindex="-1" aria-labelledby="saveSessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="saveSessionModalLabel">Salvar Sessão de Estudo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Você estudou por <strong id="elapsedTime"></strong>.</p>
+        <p>Selecione a matéria para salvar este tempo:</p>
+        <select id="materiaSelect" class="form-select">
+            <option value="">-- Selecione uma matéria --</option>
+            {% for materia in materias %}
+                <option value="{{ materia.id }}">{{ materia.nome }}</option>
+            {% empty %}
+                <option value="" disabled>Cadastre uma matéria primeiro!</option>
+            {% endfor %}
+        </select>
+        <div id="saveError" class="text-danger mt-2 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="saveButton">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="manualRegisterModal" tabindex="-1" aria-labelledby="manualRegisterModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="manualRegisterModalLabel">Registrar Estudo Manualmente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Selecione a matéria e informe o tempo estudado:</p>
+        <select id="manualMateriaSelect" class="form-select mb-3">
+            <option value="">-- Selecione uma matéria --</option>
+            {% for materia in materias %}
+                <option value="{{ materia.id }}">{{ materia.nome }}</option>
+            {% empty %}
+                <option value="" disabled>Cadastre uma matéria primeiro!</option>
+            {% endfor %}
+        </select>
+        <input type="number" id="manualMinutes" class="form-control mb-2" min="1" placeholder="Tempo em minutos">
+        <div id="manualSaveError" class="text-danger mt-2 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="manualSaveButton">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Botão para abrir o modal manual
+document.getElementById('manualRegisterBtn').addEventListener('click', function() {
+    document.getElementById('manualMateriaSelect').value = '';
+    document.getElementById('manualMinutes').value = '';
+    document.getElementById('manualSaveError').classList.add('d-none');
+    const manualModal = new bootstrap.Modal(document.getElementById('manualRegisterModal'));
+    manualModal.show();
+});
+
+// Lógica para salvar estudo manual
+document.getElementById('manualSaveButton').addEventListener('click', function() {
+    const materiaId = document.getElementById('manualMateriaSelect').value;
+    const minutos = parseInt(document.getElementById('manualMinutes').value, 10);
+    const manualSaveError = document.getElementById('manualSaveError');
+
+    if (!materiaId) {
+        manualSaveError.textContent = 'Por favor, selecione uma matéria.';
+        manualSaveError.classList.remove('d-none');
+        return;
+    }
+    if (!minutos || minutos < 1) {
+        manualSaveError.textContent = 'Informe um tempo válido em minutos.';
+        manualSaveError.classList.remove('d-none');
+        return;
+    }
+    manualSaveError.classList.add('d-none');
+
+    const csrftoken = getCookie('csrftoken');
+
+    fetch("{% url 'salvar_sessao' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken,
+        },
+        body: JSON.stringify({
+            materia_id: materiaId,
+            duracao_segundos: minutos * 60,
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            const manualModal = bootstrap.Modal.getInstance(document.getElementById('manualRegisterModal'));
+            manualModal.hide();
+            alert('Sessão registrada com sucesso!');
+        } else {
+            manualSaveError.textContent = data.mensagem || 'Ocorreu um erro ao salvar.';
+            manualSaveError.classList.remove('d-none');
+        }
+    })
+    .catch(error => {
+        manualSaveError.textContent = 'Erro de conexão. Tente novamente.';
+        manualSaveError.classList.remove('d-none');
+    });
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    const timerDisplay = document.getElementById('timerDisplay');
+    const startButton = document.getElementById('startButton');
+    const stopButton = document.getElementById('stopButton');
+    const resetButton = document.getElementById('resetButton');
+
+    let startTime;
+    let elapsedTime = 0;
+    let timerInterval;
+
+    // --- Recupera estado salvo ---
+    if (localStorage.getItem('mnemo_timer_running') === 'true') {
+        startTime = Number(localStorage.getItem('mnemo_timer_startTime'));
+        elapsedTime = Number(localStorage.getItem('mnemo_timer_elapsedTime')) || 0;
+        startTimer(true); // inicia automaticamente
+    } else if (localStorage.getItem('mnemo_timer_elapsedTime')) {
+        elapsedTime = Number(localStorage.getItem('mnemo_timer_elapsedTime'));
+        timerDisplay.textContent = formatTime(elapsedTime);
+        startButton.disabled = false;
+        stopButton.disabled = true;
+        resetButton.disabled = false;
+    }
+
+    function formatTime(time) {
+        const totalSeconds = Math.floor(time / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function startTimer(fromStorage = false) {
+        if (!fromStorage) {
+            startTime = Date.now() - elapsedTime;
+        }
+        timerInterval = setInterval(() => {
+            elapsedTime = Date.now() - startTime;
+            timerDisplay.textContent = formatTime(elapsedTime);
+            // Salva estado a cada segundo
+            localStorage.setItem('mnemo_timer_elapsedTime', elapsedTime);
+            localStorage.setItem('mnemo_timer_startTime', startTime);
+            localStorage.setItem('mnemo_timer_running', 'true');
+        }, 1000);
+        startButton.disabled = true;
+        stopButton.disabled = false;
+        resetButton.disabled = false;
+        // Salva estado
+        localStorage.setItem('mnemo_timer_startTime', startTime);
+        localStorage.setItem('mnemo_timer_running', 'true');
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        startButton.disabled = false;
+        stopButton.disabled = true;
+        // Salva estado
+        localStorage.setItem('mnemo_timer_elapsedTime', elapsedTime);
+        localStorage.setItem('mnemo_timer_running', 'false');
+    }
+    
+    function resetTimer() {
+        clearInterval(timerInterval);
+        elapsedTime = 0;
+        timerDisplay.textContent = '00:00:00';
+        startButton.disabled = false;
+        stopButton.disabled = true;
+        resetButton.disabled = true;
+        // Limpa estado salvo
+        localStorage.removeItem('mnemo_timer_elapsedTime');
+        localStorage.removeItem('mnemo_timer_startTime');
+        localStorage.setItem('mnemo_timer_running', 'false');
+    }
+
+    startButton.addEventListener('click', () => startTimer());
+    stopButton.addEventListener('click', () => {
+        stopTimer();
+        document.getElementById('elapsedTime').textContent = formatTime(elapsedTime);
+        const saveModal = new bootstrap.Modal(document.getElementById('saveSessionModal'));
+        saveModal.show();
+    });
+    resetButton.addEventListener('click', resetTimer);
+
+    // Lógica para salvar a sessão
+    const saveButton = document.getElementById('saveButton');
+    saveButton.addEventListener('click', () => {
+        const materiaId = document.getElementById('materiaSelect').value;
+        const duracaoSegundos = Math.floor(elapsedTime / 1000);
+        const saveError = document.getElementById('saveError');
+        
+        if (!materiaId) {
+            saveError.textContent = 'Por favor, selecione uma matéria.';
+            saveError.classList.remove('d-none');
+            return;
+        }
+        saveError.classList.add('d-none');
+
+        const csrftoken = getCookie('csrftoken');
+
+        fetch("{% url 'salvar_sessao' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+            body: JSON.stringify({
+                materia_id: materiaId,
+                duracao_segundos: duracaoSegundos,
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                const saveModal = bootstrap.Modal.getInstance(document.getElementById('saveSessionModal'));
+                saveModal.hide();
+                resetTimer();
+                alert('Sessão salva com sucesso!');
+            } else {
+                saveError.textContent = data.mensagem || 'Ocorreu um erro ao salvar.';
+                saveError.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            saveError.textContent = 'Erro de conexão. Tente novamente.';
+            saveError.classList.remove('d-none');
+        });
+    });
+
+    // Função para pegar o CSRF token dos cookies
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
+{% endblock %}
+

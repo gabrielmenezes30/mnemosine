@@ -1,0 +1,110 @@
+{% extends 'edital/base.html' %}
+{% load static %}
+
+{% block title %}Meus Editais{% endblock %}
+
+{% block content %}
+<header class="bg-gray-800 text-white p-4 rounded-xl flex justify-between items-center shadow-lg mb-6">
+    <h1 class="text-2xl font-bold">Meus Editais</h1>
+    <button id="add-new-edital-btn" class="bg-blue-600 hover:bg-blue-500 font-bold py-2 px-4 rounded-lg transition-colors flex items-center">
+        + Adicionar Novo Edital
+    </button>
+</header>
+<main id="edital-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for edital in editais %}
+    <a href="{% url 'edital:edital_detail' edital.id %}" class="bg-white p-6 rounded-lg shadow-md cursor-pointer hover:shadow-xl hover:scale-105 transition-all">
+        <h3 class="text-xl font-bold text-gray-800">{{ edital.nome }}</h3>
+        <p class="text-sm text-gray-500 mt-2">Criado em: {{ edital.criado_em|date:"d/m/Y" }}</p>
+    </a>
+    {% empty %}
+    <p class="col-span-full text-center text-gray-500">Nenhum edital encontrado. Adicione o seu primeiro!</p>
+    {% endfor %}
+</main>
+
+<!-- Modal para Adicionar Edital -->
+<div id="add-edital-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+    <div class="absolute inset-0 bg-black opacity-50" id="modal-overlay"></div>
+    <div class="bg-white rounded-lg shadow-xl w-11/12 md:w-2/3 lg:w-1/2 z-10 transform scale-95" id="modal-container">
+        <div class="p-6">
+            <h2 class="text-2xl font-bold mb-2">Adicionar Edital com Análise Inteligente</h2>
+            <div class="space-y-4">
+                <input id="new-edital-name" type="text" placeholder="Nome do Edital (Ex: Polícia Civil 2024)" class="w-full p-3 border rounded-md">
+                <textarea id="new-edital-content" rows="10" class="w-full p-3 border rounded-md" placeholder="Cole o conteúdo programático aqui."></textarea>
+            </div>
+        </div>
+        <div class="bg-gray-100 px-6 py-4 rounded-b-lg flex justify-end space-x-4">
+            <button id="close-add-modal-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Cancelar</button>
+            <button id="save-edital-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center w-36">
+                <span class="btn-text">Salvar Edital</span>
+                <span class="loader-container hidden ml-2"><div class="loader h-5 w-5 border-4 border-t-4 rounded-full"></div></span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addModal = document.getElementById('add-edital-modal');
+    const overlay = document.getElementById('modal-overlay');
+    const container = document.getElementById('modal-container');
+
+    function openModal() {
+        addModal.classList.remove('hidden');
+        setTimeout(() => container.classList.remove('scale-95'), 10);
+    }
+
+    function closeModal() {
+        container.classList.add('scale-95');
+        setTimeout(() => addModal.classList.add('hidden'), 300);
+    }
+    
+    document.getElementById('add-new-edital-btn').addEventListener('click', openModal);
+    document.getElementById('close-add-modal-btn').addEventListener('click', closeModal);
+    overlay.addEventListener('click', closeModal);
+
+    const saveBtn = document.getElementById('save-edital-btn');
+    saveBtn.addEventListener('click', async function() {
+        const name = document.getElementById('new-edital-name').value;
+        const content = document.getElementById('new-edital-content').value;
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+
+        if (!name || !content) {
+            alert('Nome e conteúdo são obrigatórios.');
+            return;
+        }
+
+        // Show loader
+        saveBtn.disabled = true;
+        saveBtn.querySelector('.btn-text').textContent = 'Analisando...';
+        saveBtn.querySelector('.loader-container').classList.remove('hidden');
+
+        try {
+            const response = await fetch("{% url 'edital:api_criar_edital' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ nome: name, conteudo: content })
+            });
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                const errorData = await response.json();
+                alert(`Erro: ${errorData.message}`);
+            }
+        } catch (error) {
+            alert('Ocorreu um erro de rede.');
+        } finally {
+            // Hide loader
+            saveBtn.disabled = false;
+            saveBtn.querySelector('.btn-text').textContent = 'Salvar Edital';
+            saveBtn.querySelector('.loader-container').classList.add('hidden');
+        }
+    });
+});
+</script>
+{% endblock %}

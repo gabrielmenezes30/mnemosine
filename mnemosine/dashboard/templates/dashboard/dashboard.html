@@ -1,0 +1,68 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="mx-auto my-4 p-4" style="max-width:900px; background:#fff; border-radius:18px; box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div class="text-center fw-semibold mb-3" style="font-size:1.15rem;">
+        Estatísticas de Estudos
+    </div>
+    <div style="display: flex; justify-content: center;">
+        <canvas id="studyChart" style="width:100%; max-width:700px; height:300px;"></canvas>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    fetch("{% url 'dados_grafico_pizza' %}")
+        .then(response => response.json())
+        .then(data => {
+            // Converte os dados de horas para minutos
+            const minutos = data.data.map(horas => Math.round(horas * 60));
+
+            const ctx = document.getElementById('studyChart').getContext('2d');
+
+            if (data.labels.length === 0) {
+                ctx.font = "20px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("Nenhum dado de estudo registrado ainda.", ctx.canvas.width/2, ctx.canvas.height/2);
+                return;
+            }
+
+            const studyChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Minutos Estudados',
+                        data: minutos,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderRadius: 12,
+                        maxBarThickness: 40
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.parsed.y} min`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: {
+                            grid: { color: "#f0f0f0" },
+                            title: { display: true, text: 'Minutos' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        });
+});
+</script>
+{% endblock %}
