@@ -1,63 +1,104 @@
 {% extends 'dashboard/base.html' %}
 
+{% block title %}Dashboard{% endblock %}
+
 {% block content %}
-<div class="mx-auto my-4 p-4" style="max-width:900px; background:#fff; border-radius:18px; box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-    <div class="text-center fw-semibold mb-3" style="font-size:1.15rem;">
-        Estatísticas de Estudos
-    </div>
-    <div style="display: flex; justify-content: center;">
-        <canvas id="studyChart" style="width:100%; max-width:700px; height:300px;"></canvas>
+<div class="p-4 sm:p-6 md:p-8">
+    <div class="w-full max-w-4xl mx-auto">
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Dashboard de Desempenho</h1>
+            <p class="mt-1 text-lg text-gray-600">Seu tempo de estudo por matéria.</p>
+        </header>
+        
+        <div class="p-6 bg-white rounded-xl shadow-lg">
+            <canvas id="studyChart" style="width:100%; height:400px;"></canvas>
+        </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
+    /**
+     * Função inteligente para formatar minutos em um formato legível (ex: 1h 30min).
+     * @param {number} totalMinutes - O total de minutos a ser formatado.
+     * @returns {string} - O tempo formatado.
+     */
+    function formatTime(totalMinutes) {
+        if (totalMinutes < 1) return "0min";
+        
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = Math.round(totalMinutes % 60);
+
+        if (hours > 0 && minutes > 0) {
+            return `${hours}h ${minutes}min`;
+        } else if (hours > 0) {
+            return `${hours}h`;
+        } else {
+            return `${minutes}min`;
+        }
+    }
+
     fetch("{% url 'dados_grafico_pizza' %}")
         .then(response => response.json())
         .then(data => {
-            // Converte os dados de horas para minutos
-            const minutos = data.data.map(horas => Math.round(horas * 60));
-
             const ctx = document.getElementById('studyChart').getContext('2d');
 
             if (data.labels.length === 0) {
-                ctx.font = "20px Arial";
+                ctx.font = "20px Inter, sans-serif";
                 ctx.textAlign = "center";
+                ctx.fillStyle = "#6B7280";
                 ctx.fillText("Nenhum dado de estudo registrado ainda.", ctx.canvas.width/2, ctx.canvas.height/2);
                 return;
             }
 
-            const studyChart = new Chart(ctx, {
+            // Converte os dados de horas (enviados pelo backend) para minutos para o gráfico.
+            const dataInMinutes = data.data.map(hours => hours * 60);
+
+            new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: data.labels,
                     datasets: [{
-                        label: 'Minutos Estudados',
-                        data: minutos,
-                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                        borderRadius: 12,
-                        maxBarThickness: 40
+                        label: 'Tempo Estudado',
+                        data: dataInMinutes, // Usando os dados em minutos
+                        backgroundColor: 'rgba(79, 70, 229, 0.7)',
+                        borderColor: 'rgba(79, 70, 229, 1)',
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        maxBarThickness: 50
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: {
+                    maintainAspectRatio: false,
+                    plugins: { 
                         legend: { display: false },
-                        title: { display: false },
                         tooltip: {
                             callbacks: {
+                                // Usa nossa função de formatação no tooltip
                                 label: function(context) {
-                                    return `${context.parsed.y} min`;
+                                    return formatTime(context.parsed.y);
                                 }
                             }
                         }
                     },
                     scales: {
-                        x: { grid: { display: false } },
                         y: {
-                            grid: { color: "#f0f0f0" },
-                            title: { display: true, text: 'Minutos' },
-                            beginAtZero: true
+                            beginAtZero: true,
+                            title: { 
+                                display: true, 
+                                text: 'Tempo de Estudo', // Título genérico do eixo
+                                font: { size: 14 } 
+                            },
+                            ticks: {
+                                // Usa nossa função de formatação nos marcadores do eixo Y
+                                callback: function(value, index, ticks) {
+                                    return formatTime(value);
+                                }
+                            }
                         }
                     }
                 }

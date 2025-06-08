@@ -1,18 +1,25 @@
-{% extends "dashboard/base.html" %}
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Confirmar Exclusão{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1 class="mb-4">Confirmar Exclusão</h1>
+<div class="w-full max-w-lg mx-auto">
+    <header class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">Confirmar Exclusão</h1>
+    </header>
 
-    <div class="alert alert-danger">
-        <p>Você tem certeza que deseja excluir a matéria "<strong>{{ materia.nome }}</strong>"?</p>
-        <p>Esta ação não pode ser desfeita e todas as sessões de estudo associadas a ela também serão removidas.</p>
+    <div class="p-6 bg-white rounded-xl shadow-lg">
+        <div class="p-4 text-red-800 bg-red-100 border-l-4 border-red-500">
+            <p class="font-bold">Atenção!</p>
+            <p class="mt-1">Você tem certeza que deseja excluir a matéria "<strong>{{ materia.nome }}</strong>"?</p>
+            <p class="mt-2 text-sm">Esta ação não pode ser desfeita e todas as sessões de estudo associadas a ela também serão removidas.</p>
+        </div>
+
+        <form method="post" class="flex justify-end mt-6 space-x-4">
+            {% csrf_token %}
+            <a href="{% url 'listar_materias' %}" class="px-4 py-2 font-semibold text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">Não, voltar</a>
+            <button type="submit" class="px-4 py-2 font-semibold text-white bg-red-600 rounded-lg shadow-md hover:bg-red-700">Sim, excluir</button>
+        </form>
     </div>
-
-    <form method="post">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">Sim, excluir</button>
-        <a href="{% url 'listar_materias' %}" class="btn btn-secondary">Não, voltar</a>
-    </form>
 </div>
 {% endblock %}

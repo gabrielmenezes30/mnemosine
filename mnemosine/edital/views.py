@@ -7,40 +7,29 @@ from django.contrib.auth.decorators import login_required
 from .models import Edital, Bloco, Materia, Topico, Progresso, Ciclo
 
 # --- Funções de Análise (Parser) ---
-def parse_e_salva_edital(usuario, nome_edital, conteudo_bruto):
+def cria_edital_estruturado(usuario, nome_edital, data):
     """
-    Analisa o texto bruto e cria os objetos Edital, Bloco, Materia e Topico no banco.
-    Esta é a versão aprimorada da função de análise.
+    Cria os objetos Edital, Bloco, Materia e Topico a partir de um JSON estruturado.
     """
-    edital = Edital.objects.create(usuario=usuario, nome=nome_edital, conteudo_bruto=conteudo_bruto)
-    
-    linhas = [linha.strip() for linha in conteudo_bruto.split('\n') if linha.strip()]
-    
-    bloco_atual = None
-    materia_atual = None
-    bloco_ordem = 0
-    materia_ordem = 0
-    topico_ordem = 0
+    edital = Edital.objects.create(usuario=usuario, nome=nome_edital, conteudo_bruto=json.dumps(data)) # Salva o JSON para referência
 
-    for linha in linhas:
-        # Verifica se é um bloco
-        if linha.upper().startswith('BLOCO'):
-            bloco_ordem += 1
-            bloco_atual = Bloco.objects.create(edital=edital, nome=linha, ordem=bloco_ordem)
-            materia_ordem = 0 # Reseta a ordem da matéria
-            continue
-        
-        # Heurística para matéria (Toda em maiúscula e termina com : ou é longa)
-        if bloco_atual and linha == linha.upper() and len(linha) > 5:
-            materia_ordem += 1
-            materia_atual = Materia.objects.create(bloco=bloco_atual, nome=linha.replace(':', ''), ordem=materia_ordem)
-            topico_ordem = 0 # Reseta a ordem do tópico
-            continue
-            
-        # O resto é considerado tópico
-        if materia_atual:
-            topico_ordem += 1
-            Topico.objects.create(materia=materia_atual, descricao=linha, ordem=topico_ordem)
+    blocos_data = data.get('blocos', [])
+    for bloco_ordem, bloco_dict in enumerate(blocos_data, 1):
+        # O nome do bloco será "BLOCO I", "BLOCO II", etc.
+        bloco = Bloco.objects.create(edital=edital, nome=f"BLOCO {bloco_ordem}", ordem=bloco_ordem)
+
+        materias_data = bloco_dict.get('materias', [])
+        for materia_ordem, materia_dict in enumerate(materias_data, 1):
+            nome_materia = materia_dict.get('nome')
+            if not nome_materia: continue # Pula matérias sem nome
+
+            materia = Materia.objects.create(bloco=bloco, nome=nome_materia, ordem=materia_ordem)
+
+            topicos_data = materia_dict.get('topicos', [])
+            for topico_ordem, descricao_topico in enumerate(topicos_data, 1):
+                if not descricao_topico: continue # Pula tópicos vazios
+
+                Topico.objects.create(materia=materia, descricao=descricao_topico, ordem=topico_ordem)
 
     return edital
 
@@ -78,19 +67,23 @@ def edital_detail_view(request, edital_id):
 @login_required
 @require_POST
 def criar_edital_api(request):
-    """API para criar um novo edital a partir do conteúdo colado."""
+    """API para criar um novo edital a partir do formulário estruturado."""
     data = json.loads(request.body)
-    nome_edital = data.get('nome')
-    conteudo_bruto = data.get('conteudo')
+    nome_edital = data.get('nome_edital')
+    blocos = data.get('blocos')
 
-    if not nome_edital or not conteudo_bruto:
-        return JsonResponse({'status': 'error', 'message': 'Nome e conteúdo são obrigatórios.'}, status=400)
-    
+    if not nome_edital or not blocos:
+        return JsonResponse({'status': 'error', 'message': 'Nome do edital e ao menos um bloco são obrigatórios.'}, status=400)
+
     try:
-        parse_e_salva_edital(request.user, nome_edital, conteudo_bruto)
+        # A função de parse antiga foi substituída pela nova
+        cria_edital_estruturado(request.user, nome_edital, data)
         return JsonResponse({'status': 'success', 'message': 'Edital criado com sucesso!'})
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        # É uma boa prática logar o erro no servidor também
+        # import logging
+        # logging.error(f"Erro ao criar edital: {e}")
+        return JsonResponse({'status': 'error', 'message': f'Ocorreu um erro interno: {e}'}, status=500)
 
 
 @login_required

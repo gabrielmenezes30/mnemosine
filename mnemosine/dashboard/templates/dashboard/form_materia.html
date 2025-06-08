@@ -1,21 +1,32 @@
-{% extends "dashboard/base.html" %}
+{% extends 'dashboard/base.html' %}
+
+{% block title %}{{ acao }} Matéria{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1 class="mb-4">{{ acao }} Matéria</h1>
-
-    <div class="card">
-        <div class="card-body">
-            <form method="post">
-                {% csrf_token %}
-                <div class="mb-3">
-                    <label for="nome" class="form-label">Nome da Matéria</label>
-                    <input type="text" class="form-control" id="nome" name="nome" value="{{ materia.nome|default:'' }}" required>
+<div class="w-full max-w-lg mx-auto">
+    <header class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">{{ acao }} Matéria</h1>
+    </header>
+    
+    <div class="p-6 bg-white rounded-xl shadow-lg">
+        <form method="post">
+            {% csrf_token %}
+            <div>
+                <label for="nome" class="block text-sm font-medium text-gray-700">Nome da Matéria</label>
+                <div class="mt-1">
+                    <input type="text" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" id="nome" name="nome" value="{{ materia.nome|default:'' }}" required>
                 </div>
-                <button type="submit" class="btn btn-primary">Salvar</button>
-                <a href="{% url 'listar_materias' %}" class="btn btn-secondary">Cancelar</a>
-            </form>
-        </div>
+            </div>
+            
+            <div class="flex justify-end mt-6 space-x-4">
+                 <a href="{% url 'listar_materias' %}" class="px-4 py-2 font-semibold text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
+                    Cancelar
+                </a>
+                <button type="submit" class="px-4 py-2 font-semibold text-white bg-indigo-600 rounded-lg shadow-md hover:bg-indigo-700">
+                    Salvar
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
